@@ -481,6 +481,141 @@ h2 {
   margin: 0.1rem 0 0;
 }
 
+.ghost-button {
+  margin-top: 0.35rem;
+  width: fit-content;
+}
+
+.voicing-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+}
+
+.overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 24, 0.65);
+  backdrop-filter: blur(6px);
+}
+
+.overlay-panel {
+  position: relative;
+  width: min(1100px, 92vw);
+  max-height: 82vh;
+  background: linear-gradient(180deg, rgba(12, 16, 36, 0.96), rgba(4, 8, 22, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px 18px 12px 12px;
+  padding: 1.2rem;
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.55);
+  overflow: auto;
+  z-index: 1;
+}
+
+.overlay-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.voicing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+
+.voicing-card {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+  transition: border-color 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
+  color: inherit;
+}
+
+.voicing-card:hover {
+  transform: translateY(-2px);
+  border-color: #7ef2d0;
+  box-shadow: 0 14px 30px rgba(126, 242, 208, 0.15);
+}
+
+.voicing-card.active {
+  border-color: #5ff1c9;
+  box-shadow: 0 0 0 1px rgba(95, 241, 201, 0.4);
+}
+
+.voicing-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.mini-grid {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(7, 13, 30, 0.7));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mini-fret-numbers,
+.mini-row {
+  display: grid;
+  grid-template-columns: 34px repeat(5, 1fr);
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.mini-string-label {
+  text-align: right;
+  color: #cdd9ff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.mini-fret-number {
+  text-align: center;
+  color: #9fb6ff;
+  font-size: 0.75rem;
+}
+
+.mini-fret {
+  min-height: 32px;
+  border-radius: 9px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.mini-fret.active {
+  background: linear-gradient(145deg, #61f1c2, #3bbce3);
+  border-color: #c1fff1;
+  color: #041220;
+}
+
+.mini-dot {
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.voicing-meta {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 980px) {
   .hero {
     grid-template-columns: 1fr;

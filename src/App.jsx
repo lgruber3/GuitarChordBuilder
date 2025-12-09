@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -111,6 +111,8 @@ function detectChord(notes, bassPc) {
     return {
       label: NOTE_NAMES[uniquePcs[0]],
       detail: notes.length > 1 ? 'Octaves' : 'Single note',
+      rootPc: uniquePcs[0],
+      pattern: null,
     }
   }
 
@@ -161,6 +163,8 @@ function detectChord(notes, bassPc) {
       return {
         label: `${NOTE_NAMES[root.pc]}–${NOTE_NAMES[top.pc]}`,
         detail: `Interval: ${name}`,
+        rootPc: root.pc,
+        pattern: null,
       }
     }
   }
@@ -170,15 +174,99 @@ function detectChord(notes, bassPc) {
     return {
       label: `${NOTE_NAMES[best.rootPc]}${best.pattern.suffix}${slash}`,
       detail: `${best.pattern.name} built on ${NOTE_NAMES[best.rootPc]}${slash ? ` over ${NOTE_NAMES[bassPc]}` : ''}`,
+      rootPc: best.rootPc,
+      pattern: best.pattern,
     }
   }
 
   return null
 }
 
+const normalizeInterval = (interval) => {
+  const wrapped = interval % 12
+  return wrapped < 0 ? wrapped + 12 : wrapped
+}
+
+function generateVoicings(rootPc, intervals) {
+  const allowedPcs = new Set(intervals.map((i) => (rootPc + normalizeInterval(i)) % 12))
+  const thirdPcs = intervals
+    .filter((i) => {
+      const n = normalizeInterval(i)
+      return n === 3 || n === 4
+    })
+    .map((i) => (rootPc + normalizeInterval(i)) % 12)
+
+  const optionsPerString = STRING_TUNINGS.map((openPc) => {
+    const matches = []
+    for (let fret = 0; fret <= 12; fret += 1) {
+      const pc = (openPc + fret) % 12
+      if (allowedPcs.has(pc)) {
+        matches.push(fret)
+      }
+    }
+    return matches.slice(0, 4) // keep closest matches to limit explosion
+  })
+
+  const results = new Map()
+  const windowSpan = 5
+
+  const dfs = (stringIndex, current, minFret, maxFret) => {
+    if (stringIndex === STRING_TUNINGS.length) {
+      const soundingFrets = current.filter((f) => f != null)
+      if (soundingFrets.length < 3) return
+
+      const pcs = new Set()
+      let hasRoot = false
+      let hasThird = thirdPcs.length === 0
+
+      current.forEach((fret, idx) => {
+        if (fret == null) return
+        const pc = (STRING_TUNINGS[idx] + fret) % 12
+        pcs.add(pc)
+        if (pc === rootPc) hasRoot = true
+        if (thirdPcs.includes(pc)) hasThird = true
+      })
+
+      if (!hasRoot || !hasThird) return
+      if (!pcs.size || pcs.size < Math.min(allowedPcs.size, 3)) return
+
+      const span = maxFret - minFret
+      if (span > windowSpan) return
+
+      const key = current.map((f) => (f == null ? 'x' : f)).join('-')
+      if (results.has(key)) return
+
+      const score = pcs.size * 5 + soundingFrets.length - span
+      results.set(key, {
+        frets: [...current],
+        span,
+        uniquePcs: pcs.size,
+        score,
+      })
+      return
+    }
+
+    const options = [null, ...optionsPerString[stringIndex]]
+    for (const fret of options) {
+      const nextMin = fret == null ? minFret : Math.min(minFret, fret)
+      const nextMax = fret == null ? maxFret : Math.max(maxFret, fret)
+      if (nextMin !== Infinity && nextMax - nextMin > windowSpan) continue
+      dfs(stringIndex + 1, [...current, fret], nextMin, nextMax)
+    }
+  }
+
+  dfs(0, [], Infinity, -Infinity)
+
+  return Array.from(results.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+}
+
 function App() {
   const [marks, setMarks] = useState(() => new Set())
   const [showNotes, setShowNotes] = useState(false)
+  const [voicingOverlayOpen, setVoicingOverlayOpen] = useState(false)
+  const [activeVoicingIndex, setActiveVoicingIndex] = useState(0)
 
   const toggleMark = (stringIndex, fret) => {
     setMarks((prev) => {
@@ -200,6 +288,18 @@ function App() {
   }
 
   const clearMarks = () => setMarks(new Set())
+
+  const applyVoicing = (voicing) => {
+    if (!voicing) return
+    setMarks(() => {
+      const next = new Set()
+      voicing.frets.forEach((fret, stringIndex) => {
+        if (fret == null) return
+        next.add(keyFor(stringIndex, fret))
+      })
+      return next
+    })
+  }
 
   const pitchData = useMemo(() => {
     const notes = []
@@ -224,6 +324,21 @@ function App() {
   }, [pitchData])
 
   const chord = useMemo(() => detectChord(pitchData, bassPc), [pitchData, bassPc])
+
+  const voicings = useMemo(() => {
+    if (!chord || chord.rootPc == null || !chord.pattern) return []
+    return generateVoicings(chord.rootPc, chord.pattern.intervals)
+  }, [chord])
+
+  useEffect(() => {
+    setActiveVoicingIndex(0)
+    if (!chord) {
+      setVoicingOverlayOpen(false)
+    }
+  }, [chord?.label])
+
+  const activeVoicing = voicings[activeVoicingIndex] ?? null
+  const hasVoicings = chord && voicings.length > 0
 
   return (
     <div className="page">
@@ -265,6 +380,13 @@ function App() {
                 {markedNotes.length ? markedNotes.join(' • ') : 'None yet'}
               </span>
             </div>
+            <button
+              className="secondary ghost-button"
+              onClick={() => setVoicingOverlayOpen(true)}
+              disabled={!hasVoicings}
+            >
+              {hasVoicings ? 'Show alternate voicings' : 'Add a full chord to see shapes'}
+            </button>
           </div>
         </header>
 
@@ -346,6 +468,86 @@ function App() {
             <div className="note-hint">Tip: clicking the same string moves the note.</div>
           </div>
         </section>
+
+        {voicingOverlayOpen && hasVoicings && (
+          <div className="voicing-overlay" role="dialog" aria-modal="true">
+            <div className="overlay-backdrop" onClick={() => setVoicingOverlayOpen(false)} />
+            <div className="overlay-panel">
+              <div className="overlay-header">
+                <div>
+                  <p className="eyebrow">Alternate shapes</p>
+                  <h3>{chord?.label}</h3>
+                  <p className="subtext">
+                    Tap a shape to apply it to the main fretboard. Each card shows a compact
+                    5-fret window.
+                  </p>
+                </div>
+                <button className="secondary" onClick={() => setVoicingOverlayOpen(false)}>
+                  Close
+                </button>
+              </div>
+
+              <div className="voicing-grid">
+                {voicings.map((voicing, idx) => {
+                  const soundingFrets = voicing.frets.filter((f) => f != null)
+                  const minFret = soundingFrets.length ? Math.min(...soundingFrets) : 0
+                  const windowStart = Math.max(0, minFret - 1)
+                  const windowFrets = Array.from({ length: 5 }, (_, i) => windowStart + i)
+
+                  return (
+                    <button
+                      key={idx}
+                      className={`voicing-card ${idx === activeVoicingIndex ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveVoicingIndex(idx)
+                        applyVoicing(voicing)
+                      }}
+                    >
+                      <div className="voicing-card-head">
+                        <span className="pill pill-soft">Shape {idx + 1}</span>
+                        <span className="pill pill-soft">{voicing.span} fret span</span>
+                      </div>
+                      <div className="mini-grid">
+                        <div className="mini-fret-numbers">
+                          <span className="mini-string-label spacer"> </span>
+                          {windowFrets.map((fret) => (
+                            <span key={fret} className="mini-fret-number">
+                              {fret}
+                            </span>
+                          ))}
+                        </div>
+                        {STRING_TUNINGS.map((openPc, stringIndex) => (
+                          <div key={stringIndex} className="mini-row">
+                            <span className="mini-string-label">{STRING_LABELS[stringIndex]}</span>
+                            {windowFrets.map((fret) => {
+                              const isActive = voicing.frets[stringIndex] === fret
+                              const noteName = NOTE_NAMES[(openPc + fret) % 12]
+                              return (
+                                <span
+                                  key={fret}
+                                  className={`mini-fret ${isActive ? 'active' : ''}`}
+                                  aria-label={isActive ? `${noteName} at fret ${fret}` : undefined}
+                                >
+                                  {isActive && <span className="mini-dot">{noteName}</span>}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="voicing-meta">
+                        <span className="pill pill-soft">{voicing.uniquePcs} chord tones</span>
+                        <span className="pill pill-soft">
+                          {voicing.frets.filter((f) => f != null).length} strings
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
