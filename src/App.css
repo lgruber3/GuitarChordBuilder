@@ -616,6 +616,45 @@ h2 {
   flex-wrap: wrap;
 }
 
+.chord-tone.selected {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22), 0 0 0 6px rgba(255, 255, 255, 0.08);
+}
+
+.role-root.selected {
+  background: linear-gradient(145deg, #ffd166, #ff9f1c);
+  border-color: #ffe6b0;
+}
+
+.role-third.selected {
+  background: linear-gradient(145deg, #6dd3ff, #3d7bff);
+  border-color: #b8deff;
+}
+
+.role-fifth.selected {
+  background: linear-gradient(145deg, #6cf1c7, #3bbce3);
+  border-color: #c1fff1;
+}
+
+.role-seventh.selected {
+  background: linear-gradient(145deg, #f58bff, #c45bff);
+  border-color: #fbd7ff;
+}
+
+.role-ninth.selected,
+.role-eleventh.selected,
+.role-thirteenth.selected {
+  background: linear-gradient(145deg, #ffd6a5, #ff7eb6);
+  border-color: #ffe9d4;
+}
+
+.toggle + .toggle {
+  margin-left: 0.25rem;
+}
+
+.fret.chord-tone .note {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+}
+
 @media (max-width: 980px) {
   .hero {
     grid-template-columns: 1fr;

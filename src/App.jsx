@@ -4,7 +4,7 @@ import './App.css'
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const STRING_LABELS = ['E', 'B', 'G', 'D', 'A', 'E']
 const STRING_TUNINGS = [4, 11, 7, 2, 9, 4] 
-const STRING_TUNINGS_MIDI = [64, 59, 55, 50, 45, 40] // midi-ish refs for bass detection high -> low
+const STRING_TUNINGS_MIDI = [64, 59, 55, 50, 45, 40] 
 const FRETS = Array.from({ length: 13 }, (_, i) => i) 
 
 const INTERVAL_DEFS = [
@@ -88,6 +88,14 @@ const MODERN = [
 
 const CHORD_PATTERNS = [...TRIADS, ...SEVENTHS, ...EXTENSIONS, ...ALTERED, ...ADDED, ...MODERN]
 
+const LEGEND_ITEMS = [
+  { label: 'Root', roleClass: 'role-root' },
+  { label: '3rd', roleClass: 'role-third' },
+  { label: '5th', roleClass: 'role-fifth' },
+  { label: '7th', roleClass: 'role-seventh' },
+  { label: 'Extension', roleClass: 'role-ninth' },
+]
+
 const keyFor = (stringIndex, fret) => `${stringIndex}-${fret}`
 
 const intervalLookup = Object.fromEntries(INTERVAL_DEFS.map((i) => [i.semitones, i]))
@@ -102,6 +110,37 @@ const wrapInterval = (semitones) => {
   while (n > 24) n -= 12
   return n
 }
+
+const DEGREE_LABELS = {
+  0: '1',
+  1: 'b9',
+  2: '9',
+  3: 'b3',
+  4: '3',
+  5: '11',
+  6: 'b5',
+  7: '5',
+  8: '#5',
+  9: '13',
+  10: 'b7',
+  11: '7',
+}
+
+const DEGREE_ROLE = {
+  0: 'root',
+  3: 'third',
+  4: 'third',
+  7: 'fifth',
+  10: 'seventh',
+  11: 'seventh',
+  2: 'ninth',
+  1: 'ninth',
+  5: 'eleventh',
+  9: 'thirteenth',
+}
+
+const degreeLabel = (rootPc, pc) => DEGREE_LABELS[(pc - rootPc + 12) % 12]
+const degreeRole = (rootPc, pc) => DEGREE_ROLE[(pc - rootPc + 12) % 12] || null
 
 function detectChord(notes, bassPc) {
   if (!notes.length) return null
@@ -265,6 +304,7 @@ function generateVoicings(rootPc, intervals) {
 function App() {
   const [marks, setMarks] = useState(() => new Set())
   const [showNotes, setShowNotes] = useState(false)
+  const [showIntervals, setShowIntervals] = useState(false)
   const [voicingOverlayOpen, setVoicingOverlayOpen] = useState(false)
   const [activeVoicingIndex, setActiveVoicingIndex] = useState(0)
 
@@ -402,10 +442,27 @@ function App() {
                 <input
                   type="checkbox"
                   checked={showNotes}
-                  onChange={(e) => setShowNotes(e.target.checked)}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setShowNotes(next)
+                    if (next) setShowIntervals(false)
+                  }}
                 />
                 <span className="slider" aria-hidden />
                 <span className="toggle-label">Show note names</span>
+              </label>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={showIntervals}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setShowIntervals(next)
+                    if (next) setShowNotes(false)
+                  }}
+                />
+                <span className="slider" aria-hidden />
+                <span className="toggle-label">Show intervals</span>
               </label>
               <button className="secondary" onClick={clearMarks} aria-label="Clear markings">
                 Clear all
@@ -429,17 +486,23 @@ function App() {
                 {FRETS.map((fret) => {
                   const key = keyFor(stringIndex, fret)
                   const selected = marks.has(key)
-                  const noteName = NOTE_NAMES[(openPc + fret) % 12]
-                  const displayNote = showNotes ? noteName : selected ? '•' : ''
-                  const dotMode = !showNotes && selected
+                  const pc = (openPc + fret) % 12
+                  const noteName = NOTE_NAMES[pc]
+                  const role = chord ? degreeRole(chord.rootPc, pc) : null
+                  const displayInterval =
+                    showIntervals && chord && selected ? degreeLabel(chord.rootPc, pc) : null
+                  const displayNote = displayInterval || (showNotes ? noteName : selected ? '•' : '')
+                  const dotMode = !showNotes && !displayInterval && selected
+                  const roleClass = role ? `role-${role}` : ''
+                  const chordTone = role != null
 
                   return (
                     <button
                       key={key}
-                      className={`fret ${selected ? 'selected' : ''} ${fret === 0 ? 'nut' : ''}`}
+                      className={`fret ${selected ? 'selected' : ''} ${chordTone ? 'chord-tone' : ''} ${roleClass} ${fret === 0 ? 'nut' : ''}`}
                       onClick={() => toggleMark(stringIndex, fret)}
                       aria-pressed={selected}
-                      aria-label={`${STRING_LABELS[stringIndex]} string fret ${fret} (${noteName})`}
+                      aria-label={`${STRING_LABELS[stringIndex]} string fret ${fret} (${displayInterval || noteName})`}
                     >
                       <span className={`note ${dotMode ? 'dot' : ''}`}>{displayNote}</span>
                       <span className="pulse" aria-hidden />
@@ -449,6 +512,36 @@ function App() {
               </div>
             ))}
           </div>
+
+          {/* LEGEND SECTION */}
+          {chord && (
+            <div className="legend-container" style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="eyebrow" style={{ marginRight: '0.5rem', marginBottom: 0 }}>Intervals:</span>
+              {LEGEND_ITEMS.map((item) => (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div 
+                    className={`fret selected ${item.roleClass}`} 
+                    style={{ 
+                      position: 'relative', 
+                      width: '24px', 
+                      height: '24px', 
+                      border: 'none', 
+                      padding: 0, 
+                      top: 'auto', 
+                      left: 'auto', 
+                      transform: 'none',
+                      cursor: 'default',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span className="note dot"></span>
+                  </div>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #888)' }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
         </section>
 
         <section className="summary-grid">
